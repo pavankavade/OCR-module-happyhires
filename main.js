@@ -2,9 +2,11 @@ const express = require("express");
 const app = express();
 const fs = require("fs");
 const multer = require("multer");
-const { TesseractWorker } = require("tesseract.js");
-const worker = new TesseractWorker();
+const { createWorker } = require('tesseract.js');
 
+const worker = createWorker({
+  logger: m => console.log(m)
+});
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "./uploads");
@@ -31,15 +33,14 @@ app.post("/upload", (req, res) => {
       if (err) {
         return console.log(err);
       }
-      worker
-        .recognize(data, "hin", { tessjs_create_pdf: "1" })
-        .progress(progress => {
-          console.log(progress);
-        })
-        .then(result => {
-          res.send(result.text);
-        })
-        .finally(() => worker.terminate());
+      (async () => {
+        await worker.load();
+        await worker.loadLanguage('hin');
+        await worker.initialize('hin');
+        const { data: { text } } = await worker.recognize(data);
+        res.send(text);
+        await worker.terminate();
+      })();
     });
   });
 });
